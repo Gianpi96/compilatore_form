@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titolo %}Scegli pagina — DocForm{% endblock %}
+{% block contenuto %}
+<nav>
+  <ul><li><strong><a href="/dashboard">DocForm</a></strong></li></ul>
+</nav>
+
+<h1>Scegli la pagina da elaborare</h1>
+<p>Il PDF caricato ha {{ anteprime|length }} pagine. Seleziona quella con la carta d'identità.</p>
+
+<form method="post" action="/pratiche/nuova/pagina">
+  <input type="hidden" name="pdf_base64" value="{{ pdf_base64 }}">
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem;">
+    {% for numero_pagina, anteprima_base64 in anteprime %}
+    <label style="display:block; text-align:center;">
+      <input type="radio" name="pagina" value="{{ numero_pagina }}" {% if loop.first %}checked{% endif %}>
+      <img src="data:image/png;base64,{{ anteprima_base64 }}" alt="Pagina {{ numero_pagina }}" style="max-width:100%; border: 1px solid var(--pico-muted-border-color);">
+      <span>Pagina {{ numero_pagina }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  <button type="submit">Usa questa pagina</button>
+</form>
+{% endblock %}

@@ -7,7 +7,6 @@
 
 # Immagini temporanee dei documenti caricati
 storage/temp/
-tmp_uploads/
 
 # PDF di output (contengono dati personali confermati)
 output/

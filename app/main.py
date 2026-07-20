@@ -1,12 +1,10 @@
-from pathlib import Path
-
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.status import (
     HTTP_303_SEE_OTHER,
     HTTP_401_UNAUTHORIZED,
+    HTTP_413_CONTENT_TOO_LARGE,
     HTTP_429_TOO_MANY_REQUESTS,
 )
 
@@ -18,12 +16,35 @@ from app.auth import (
     verifica_credenziali,
 )
 from app.db import get_db
-from app.models import Utente
+from app.models import Pratica, Utente
+from app.pratiche import MAX_UPLOAD_BYTES
 from app.rate_limit import limitatore_login
+from app.routes_pratiche import router as router_pratiche
+from app.templates_setup import templates
 
 app = FastAPI(title="DocForm")
+app.include_router(router_pratiche)
 
-templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+# Margine per l'overhead del base64 (~33%) nel passo di scelta pagina PDF, dove
+# il file originale viaggia come campo nascosto (vedi app/routes_pratiche.py).
+_LIMITE_RICHIESTA_CON_BASE64 = int(MAX_UPLOAD_BYTES * 1.4)
+_ROTTE_CON_LIMITE_UPLOAD = {
+    "/pratiche/nuova": MAX_UPLOAD_BYTES,
+    "/pratiche/nuova/pagina": _LIMITE_RICHIESTA_CON_BASE64,
+}
+
+
+@app.middleware("http")
+async def limite_dimensione_richiesta(request: Request, call_next):
+    limite = _ROTTE_CON_LIMITE_UPLOAD.get(request.url.path)
+    if limite is not None and request.method == "POST":
+        content_length = request.headers.get("content-length")
+        if content_length is not None and int(content_length) > limite:
+            return PlainTextResponse(
+                "Il file supera la dimensione massima consentita (20 MB).",
+                status_code=HTTP_413_CONTENT_TOO_LARGE,
+            )
+    return await call_next(request)
 
 
 @app.exception_handler(SessioneNonValidaError)
@@ -85,5 +106,12 @@ def logout():
 
 
 @app.get("/dashboard")
-def dashboard(request: Request, utente: Utente = Depends(richiedi_utente)):
-    return templates.TemplateResponse(request, "dashboard.html", {"utente": utente})
+def dashboard(
+    request: Request,
+    utente: Utente = Depends(richiedi_utente),
+    db: Session = Depends(get_db),
+):
+    pratiche = db.query(Pratica).order_by(Pratica.creato_il.desc()).all()
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"utente": utente, "pratiche": pratiche}
+    )

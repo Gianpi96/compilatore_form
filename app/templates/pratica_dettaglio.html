@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titolo %}Pratica — DocForm{% endblock %}
+{% block contenuto %}
+<nav>
+  <ul><li><strong><a href="/dashboard">DocForm</a></strong></li></ul>
+</nav>
+
+{% if duplicata %}
+<p style="color: var(--pico-ins-color);">
+  Possibile duplicato: hash identico alla
+  <a href="/pratiche/{{ duplicata.id }}">pratica del {{ duplicata.creato_il.strftime('%d/%m/%Y %H:%M') }}</a>.
+  Non blocca il caricamento: verifica prima di procedere.
+</p>
+{% endif %}
+
+{% if errore %}
+<p style="color: var(--pico-del-color);">{{ errore }}</p>
+{% endif %}
+
+<h1>Pratica</h1>
+<p><strong>Id:</strong> {{ pratica.id }}</p>
+<p><strong>Stato:</strong> {{ pratica.stato.value }}</p>
+<p><strong>Creata il:</strong> {{ pratica.creato_il.strftime('%d/%m/%Y %H:%M') }}</p>
+<p><em>Verifica ed estrazione dati — in costruzione (TASK 5/6).</em></p>
+
+{% if pratica.stato.value in ("caricato", "in_verifica", "estrazione_fallita") %}
+<form method="post" action="/pratiche/{{ pratica.id }}/annulla"
+      onsubmit="return confirm('Annullare questa pratica? L\'immagine caricata verrà cancellata e i dati estratti ripuliti. L\'operazione non è reversibile.');">
+  <button type="submit" class="secondary">Annulla pratica</button>
+</form>
+{% endif %}
+{% endblock %}

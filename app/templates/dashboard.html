@@ -12,5 +12,24 @@
     </li>
   </ul>
 </nav>
-<p><em>Dashboard pratiche — in costruzione (TASK 9).</em></p>
+<p><a href="/pratiche/nuova" role="button">Nuova pratica</a></p>
+
+{% if pratiche %}
+<table>
+  <thead><tr><th>Id</th><th>Stato</th><th>Creata il</th></tr></thead>
+  <tbody>
+    {% for pratica in pratiche %}
+    <tr>
+      <td><a href="/pratiche/{{ pratica.id }}">{{ pratica.id[:8] }}…</a></td>
+      <td>{{ pratica.stato.value }}</td>
+      <td>{{ pratica.creato_il.strftime('%d/%m/%Y %H:%M') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Nessuna pratica caricata. Carica un documento per iniziare.</p>
+{% endif %}
+
+<p><em>Elenco minimale — filtri ed empty-state definitivi in TASK 9.</em></p>
 {% endblock %}

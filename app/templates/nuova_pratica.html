@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titolo %}Nuova pratica — DocForm{% endblock %}
+{% block contenuto %}
+<nav>
+  <ul><li><strong><a href="/dashboard">DocForm</a></strong></li></ul>
+</nav>
+
+<h1>Nuova pratica</h1>
+<p>Carica una carta d'identità (JPEG, PNG o PDF, max 20 MB).</p>
+
+{% if errore %}
+<p style="color: var(--pico-del-color);">{{ errore }}</p>
+{% endif %}
+
+<form method="post" action="/pratiche/nuova" enctype="multipart/form-data">
+  <label for="file">Documento
+    <input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.pdf" required>
+  </label>
+  <button type="submit">Carica</button>
+</form>
+{% endblock %}

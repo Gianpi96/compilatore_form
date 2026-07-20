@@ -23,6 +23,7 @@ class StatoPratica(enum.StrEnum):
     CONFERMATO = "confermato"
     ESTRAZIONE_FALLITA = "estrazione_fallita"
     ABBANDONATO = "abbandonato"
+    ANNULLATO = "annullato"
 
 
 # Transizioni ammesse (vedi SPEC.md §2 e §5, confermate con l'utente per il caso
@@ -33,11 +34,21 @@ TRANSIZIONI_AMMESSE: dict[StatoPratica, set[StatoPratica]] = {
         StatoPratica.IN_VERIFICA,
         StatoPratica.ESTRAZIONE_FALLITA,
         StatoPratica.ABBANDONATO,
+        StatoPratica.ANNULLATO,
     },
-    StatoPratica.IN_VERIFICA: {StatoPratica.CONFERMATO, StatoPratica.ABBANDONATO},
-    StatoPratica.ESTRAZIONE_FALLITA: {StatoPratica.IN_VERIFICA},
+    StatoPratica.IN_VERIFICA: {
+        StatoPratica.CONFERMATO,
+        StatoPratica.ABBANDONATO,
+        StatoPratica.ANNULLATO,
+    },
+    StatoPratica.ESTRAZIONE_FALLITA: {
+        StatoPratica.IN_VERIFICA,
+        StatoPratica.ABBANDONATO,
+        StatoPratica.ANNULLATO,
+    },
     StatoPratica.CONFERMATO: set(),
     StatoPratica.ABBANDONATO: set(),
+    StatoPratica.ANNULLATO: set(),
 }
 
 

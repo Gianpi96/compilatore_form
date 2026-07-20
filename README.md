@@ -64,6 +64,17 @@ v1 ha un solo utente (l'operatore), creato manualmente — non c'è auto-registr
   La password deve avere almeno 12 caratteri (nessun altro vincolo di composizione).
 - **Brute-force:** `/login` è limitato a 5 tentativi ogni 5 minuti per IP; oltre la soglia risponde `429`.
 
+## Nuova pratica (upload documento)
+
+`http://localhost:8000/pratiche/nuova` — accetta JPEG, PNG o PDF (max 20 MB, PDF fino a 50 pagine).
+
+- Il formato è verificato sui **magic bytes** reali del file, mai sull'estensione dichiarata dal client.
+- Per un PDF multipagina, l'operatore sceglie quale pagina elaborare da un'anteprima; solo la pagina scelta viene renderizzata e salvata come immagine.
+- L'hash SHA-256 del file caricato viene confrontato con le pratiche esistenti: se coincide, la nuova pratica viene comunque creata ma segnalata come possibile duplicato (avviso non bloccante, con link alla pratica originale).
+- Le immagini caricate sono salvate in `storage/temp/` (non tracciata da git, cancellata alla conferma della pratica, dopo 24h di abbandono, o su annullamento manuale — vedi TASK 6/7/8).
+
+Da `http://localhost:8000/pratiche/{id}`, finché la pratica non è confermata (stato `caricato`, `in_verifica` o `estrazione_fallita`), è disponibile il pulsante **"Annulla pratica"** (richiede conferma): cancella fisicamente l'immagine e ripulisce i campi anagrafici estratti, portando la pratica a stato `annullato` — non elimina il record (resta per audit dei volumi).
+
 ## Sviluppo
 
 ```powershell
@@ -83,9 +94,10 @@ bandit -r app -c pyproject.toml
 ## Struttura del progetto
 
 ```
-app/            codice applicativo (FastAPI, modelli SQLAlchemy, autenticazione)
+app/            codice applicativo (FastAPI, modelli SQLAlchemy, autenticazione, upload pratiche)
 app/cli.py          comandi amministrativi (es. reset-password)
-app/templates/      pagine Jinja2 (login, dashboard)
+app/templates/      pagine Jinja2 (login, dashboard, upload pratica)
+storage/temp/       immagini caricate, temporanee (non tracciata da git)
 tests/          test pytest
 migrations/     migrazioni Alembic (schema DB)
 alembic.ini         configurazione Alembic

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titolo %}Dashboard — DocForm{% endblock %}
+{% block contenuto %}
+<nav>
+  <ul><li><strong>DocForm</strong></li></ul>
+  <ul>
+    <li>{{ utente.email }}</li>
+    <li>
+      <form method="post" action="/logout" style="margin: 0;">
+        <button type="submit" class="secondary">Esci</button>
+      </form>
+    </li>
+  </ul>
+</nav>
+<p><em>Dashboard pratiche — in costruzione (TASK 9).</em></p>
+{% endblock %}

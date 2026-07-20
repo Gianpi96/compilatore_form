@@ -49,6 +49,21 @@ python -m app.seed_dev
 
 Il percorso del database è `sqlite:///./docform.db` di default; sovrascrivibile con la variabile d'ambiente `DATABASE_URL` (usata anche dai test, che comunque girano su un DB SQLite in memoria e non toccano mai `docform.db`).
 
+## Autenticazione
+
+v1 ha un solo utente (l'operatore), creato manualmente — non c'è auto-registrazione né recupero password via email (vedi SPEC.md §3).
+
+- **Login:** `http://localhost:8000/login` (email + password).
+- **Sessione:** cookie firmato (`itsdangerous`), `HttpOnly` + `SameSite=Strict`, valido 8 ore.
+- **Password persa:** unico modo per recuperarla è resettarla da riga di comando, sulla macchina che ospita `docform.db`:
+
+  ```powershell
+  python -m app.cli reset-password operatore@esempio.it "nuova-password-almeno-12-caratteri"
+  ```
+
+  La password deve avere almeno 12 caratteri (nessun altro vincolo di composizione).
+- **Brute-force:** `/login` è limitato a 5 tentativi ogni 5 minuti per IP; oltre la soglia risponde `429`.
+
 ## Sviluppo
 
 ```powershell
@@ -68,7 +83,9 @@ bandit -r app -c pyproject.toml
 ## Struttura del progetto
 
 ```
-app/            codice applicativo (FastAPI, modelli SQLAlchemy)
+app/            codice applicativo (FastAPI, modelli SQLAlchemy, autenticazione)
+app/cli.py          comandi amministrativi (es. reset-password)
+app/templates/      pagine Jinja2 (login, dashboard)
 tests/          test pytest
 migrations/     migrazioni Alembic (schema DB)
 alembic.ini         configurazione Alembic

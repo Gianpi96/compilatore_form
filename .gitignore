@@ -1,0 +1,30 @@
+# Segreti e configurazione locale
+.env
+
+# Database
+*.db
+*.db-journal
+
+# Immagini temporanee dei documenti caricati
+storage/temp/
+tmp_uploads/
+
+# PDF di output (contengono dati personali confermati)
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Ambiente virtuale
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db

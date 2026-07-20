@@ -32,6 +32,23 @@ curl http://localhost:8000/health
 
 Il comando resta in esecuzione (è un server): `Ctrl+C` per fermarlo va premuto solo dopo aver visto la riga `Application startup complete`, non prima.
 
+## Database e migrazioni
+
+Schema gestito con Alembic (mai modifiche manuali allo schema). Dopo aver installato le dipendenze:
+
+```powershell
+# Applica tutte le migrazioni (crea docform.db se non esiste)
+alembic upgrade head
+
+# Annulla l'ultima migrazione applicata
+alembic downgrade -1
+
+# (solo sviluppo) crea un utente di test — MAI da eseguire in produzione
+python -m app.seed_dev
+```
+
+Il percorso del database è `sqlite:///./docform.db` di default; sovrascrivibile con la variabile d'ambiente `DATABASE_URL` (usata anche dai test, che comunque girano su un DB SQLite in memoria e non toccano mai `docform.db`).
+
 ## Sviluppo
 
 ```powershell
@@ -51,11 +68,12 @@ bandit -r app -c pyproject.toml
 ## Struttura del progetto
 
 ```
-app/            codice applicativo (FastAPI)
+app/            codice applicativo (FastAPI, modelli SQLAlchemy)
 tests/          test pytest
-migrations/     migrazioni Alembic (schema DB, vedi TASK 2)
+migrations/     migrazioni Alembic (schema DB)
+alembic.ini         configurazione Alembic
 requirements.txt   dipendenze Python
-pyproject.toml      configurazione ruff/pytest
+pyproject.toml      configurazione ruff/pytest/bandit
 .env.example        variabili d'ambiente richieste (copiare in .env)
 ```
 

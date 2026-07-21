@@ -20,10 +20,12 @@ from app.models import Pratica, Utente
 from app.pratiche import MAX_UPLOAD_BYTES
 from app.rate_limit import limitatore_login
 from app.routes_pratiche import router as router_pratiche
+from app.routes_verifica import router as router_verifica
 from app.templates_setup import templates
 
 app = FastAPI(title="DocForm")
 app.include_router(router_pratiche)
+app.include_router(router_verifica)
 
 # Margine per l'overhead del base64 (~33%) nel passo di scelta pagina PDF, dove
 # il file originale viaggia come campo nascosto (vedi app/routes_pratiche.py).

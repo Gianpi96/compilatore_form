@@ -73,7 +73,29 @@ v1 ha un solo utente (l'operatore), creato manualmente — non c'è auto-registr
 - L'hash SHA-256 del file caricato viene confrontato con le pratiche esistenti: se coincide, la nuova pratica viene comunque creata ma segnalata come possibile duplicato (avviso non bloccante, con link alla pratica originale).
 - Le immagini caricate sono salvate in `storage/temp/` (non tracciata da git, cancellata alla conferma della pratica, dopo 24h di abbandono, o su annullamento manuale — vedi TASK 6/7/8).
 
-Da `http://localhost:8000/pratiche/{id}`, finché la pratica non è confermata (stato `caricato`, `in_verifica` o `estrazione_fallita`), è disponibile il pulsante **"Annulla pratica"** (richiede conferma): cancella fisicamente l'immagine e ripulisce i campi anagrafici estratti, portando la pratica a stato `annullato` — non elimina il record (resta per audit dei volumi).
+Finché la pratica non è confermata (stato `caricato`, `in_verifica` o `estrazione_fallita`), è disponibile il pulsante **"Annulla pratica"** (richiede conferma): cancella fisicamente l'immagine e ripulisce i campi anagrafici estratti, portando la pratica a stato `annullato` — non elimina il record (resta per audit dei volumi).
+
+## Estrazione automatica (Groq vision)
+
+Subito dopo l'upload (nella stessa richiesta, senza coda), l'immagine viene inviata al modello vision configurato in `GROQ_MODEL` (default `qwen/qwen3.6-27b` in `app/groq_estrattore.py`, unico modello vision offerto da Groq alla data del 2026-07-21 e testato con una chiamata reale — **verificare comunque su [console.groq.com/docs/vision](https://console.groq.com/docs/vision)** se il catalogo modelli è cambiato). L'esito:
+
+- **Successo:** campi (nome, cognome, data di nascita, luogo di nascita, codice fiscale, numero documento, data di scadenza) e relative confidenze salvati sulla pratica, stato `in_verifica`. Il codice fiscale viene anche validato (carattere di controllo + coerenza con nome/cognome/data di nascita, vedi `app/codice_fiscale.py`) e la scadenza confrontata con la data odierna (timezone Europe/Rome).
+- **Errore/timeout/risposta non interpretabile:** stato `estrazione_fallita`, nessuna eccezione propagata (l'errore viene loggato con `logging`, senza dati anagrafici); i campi andranno inseriti manualmente (TASK 6).
+
+Se un modello smette di funzionare (es. `model_not_found`), il messaggio d'errore compare nei log del server — non c'è bisogno di indovinare, basta leggerlo.
+
+Il motore di estrazione è dietro un'interfaccia astratta (`app/estrattore.py`, `EstrattoreDocumento`) sostituibile senza toccare i chiamanti — utile se in futuro serve un motore locale che non invii mai i documenti fuori dal server (vedi SPEC.md §1).
+
+## Verifica pratica
+
+Dopo l'estrazione, `http://localhost:8000/pratiche/{id}` reindirizza automaticamente a `/pratiche/{id}/verifica`:
+
+- **Estrazione riuscita** (`in_verifica`): immagine a fianco del form precompilato. I campi con confidenza sotto l'80% sono evidenziati e richiedono una conferma esplicita (HTMX, senza reload) prima che il pulsante "Conferma pratica" sia accettato dal server — un tentativo di conferma con campi ancora da confermare viene rifiutato con l'elenco esplicito dei campi mancanti.
+- **Estrazione fallita** (`estrazione_fallita`): stessa schermata, ma tutti i campi sono vuoti e obbligatori (nessuna evidenziazione, non c'è confidenza da mostrare). Dopo il salvataggio la pratica torna in `in_verifica` (i campi inseriti a mano contano come già confermati) — serve comunque un ultimo click su "Conferma pratica".
+- Avvisi non bloccanti in testa alla pagina: documento scaduto, codice fiscale incoerente, possibile duplicato.
+- Il pulsante **"Annulla pratica"** resta disponibile anche da questa schermata.
+
+Alla conferma la pratica passa a stato `confermato` — generazione del PDF e cancellazione dell'immagine restano TASK 7.
 
 ## Sviluppo
 
@@ -94,9 +116,13 @@ bandit -r app -c pyproject.toml
 ## Struttura del progetto
 
 ```
-app/            codice applicativo (FastAPI, modelli SQLAlchemy, autenticazione, upload pratiche)
+app/            codice applicativo (FastAPI, modelli SQLAlchemy, autenticazione, upload, estrazione)
 app/cli.py          comandi amministrativi (es. reset-password)
-app/templates/      pagine Jinja2 (login, dashboard, upload pratica)
+app/estrattore.py       interfaccia astratta del motore di estrazione
+app/groq_estrattore.py  implementazione Groq vision (v1)
+app/codice_fiscale.py   validazione carattere di controllo e coerenza
+app/verifica.py         logica della schermata di verifica campo per campo
+app/templates/      pagine Jinja2 (login, dashboard, upload, verifica pratica)
 storage/temp/       immagini caricate, temporanee (non tracciata da git)
 tests/          test pytest
 migrations/     migrazioni Alembic (schema DB)

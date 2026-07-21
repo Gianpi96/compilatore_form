@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block titolo %}Verifica pratica — DocForm{% endblock %}
+{% block contenuto %}
+<nav>
+  <ul><li><strong><a href="/dashboard">DocForm</a></strong></li></ul>
+</nav>
+
+<h1>Verifica pratica</h1>
+
+{% if duplicato_di_pratica_id %}
+<p style="color: var(--pico-ins-color);">
+  Possibile duplicato: hash identico alla
+  <a href="/pratiche/{{ duplicato_di_pratica_id }}">pratica originale</a>.
+  Non blocca la conferma: verifica prima di procedere.
+</p>
+{% endif %}
+{% if pratica.documento_scaduto %}
+<p style="color: var(--pico-del-color);">Documento scaduto.</p>
+{% endif %}
+{% if pratica.cf_incoerente %}
+<p style="color: var(--pico-del-color);">Codice fiscale incoerente con nome/cognome/data di nascita: verifica con attenzione.</p>
+{% endif %}
+{% if errore %}
+<p style="color: var(--pico-del-color);">{{ errore }}</p>
+{% endif %}
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+  <div>
+    <img src="/pratiche/{{ pratica.id }}/immagine" alt="Documento caricato" style="max-width: 100%; border: 1px solid var(--pico-muted-border-color);">
+  </div>
+
+  <div>
+    {% if pratica.stato.value == "estrazione_fallita" %}
+    <p><em>Estrazione automatica non riuscita: inserisci tutti i campi manualmente.</em></p>
+    <form method="post" action="/pratiche/{{ pratica.id }}/verifica/compila">
+      {% for campo, etichetta in campi %}
+      <label for="{{ campo }}">{{ etichetta }}
+        <input
+          type="{{ 'date' if campo in ('data_nascita', 'data_scadenza') else 'text' }}"
+          id="{{ campo }}" name="{{ campo }}" required>
+      </label>
+      {% endfor %}
+      <button type="submit">Salva e prosegui</button>
+    </form>
+    {% else %}
+      {% for campo, etichetta in campi %}
+        {% include "_partials/campo_verifica.html" %}
+      {% endfor %}
+      <form method="post" action="/pratiche/{{ pratica.id }}/verifica/conferma" style="margin-top: 1rem;">
+        <button type="submit">Conferma pratica</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" action="/pratiche/{{ pratica.id }}/annulla"
+      onsubmit="return confirm('Annullare questa pratica? L\'immagine caricata verrà cancellata e i dati estratti ripuliti. L\'operazione non è reversibile.');"
+      style="margin-top: 2rem;">
+  <button type="submit" class="secondary">Annulla pratica</button>
+</form>
+{% endblock %}

@@ -15,12 +15,31 @@ from sqlalchemy.orm import sessionmaker
 
 import app.pratiche as pratiche_module
 from app.db import Base, get_db
+from app.estrattore import EstrattoreDocumento
+from app.groq_estrattore import get_estrattore
 from app.main import app
 from app.models import LogEvento, Pratica, StatoPratica, Utente
 from app.rate_limit import limitatore_login
 
 EMAIL = "operatore@example.com"
 PASSWORD = "password-valida-123"
+
+
+class _EstrattoreFintoSempreValido(EstrattoreDocumento):
+    """Estrattore finto per i test di TASK 4 (upload): non deve mai chiamare
+    la rete. L'esito dell'estrazione e' testato a fondo in test_estrazione.py."""
+
+    def estrai(self, immagine: bytes) -> dict:
+        campo = {"valore": "X", "confidenza": 0.9}
+        return {
+            "nome": campo,
+            "cognome": campo,
+            "data_nascita": {"valore": "1980-01-01", "confidenza": 0.9},
+            "luogo_nascita": campo,
+            "codice_fiscale": {"valore": None, "confidenza": 0.0},
+            "numero_documento": campo,
+            "data_scadenza": {"valore": "2030-01-01", "confidenza": 0.9},
+        }
 
 
 def _jpeg_bytes(colore: tuple[int, int, int] = (255, 0, 0)) -> bytes:
@@ -62,6 +81,7 @@ def client(tmp_path, monkeypatch):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_estrattore] = lambda: _EstrattoreFintoSempreValido()
     limitatore_login.reset()
 
     test_client = TestClient(app)
@@ -91,7 +111,10 @@ def test_upload_jpeg_valido_crea_pratica_caricato(client):
     db.close()
 
     assert pratica is not None
-    assert pratica.stato.value == "caricato"
+    # Lo stato "caricato" e' solo intermedio: TASK 5 collega l'estrazione
+    # automatica nello stesso ciclo di richiesta, quindi lo stato finale
+    # osservabile e' gia' "in_verifica" (esito dell'estrattore finto).
+    assert pratica.stato.value == "in_verifica"
     assert pratica.percorso_immagine_temp is not None
     assert Path(pratica.percorso_immagine_temp).exists()
 

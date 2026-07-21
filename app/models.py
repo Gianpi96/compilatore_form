@@ -88,6 +88,7 @@ class Pratica(Base):
     data_scadenza: Mapped[Date | None] = mapped_column(Date, nullable=True)
 
     confidenza_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    campi_confermati_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     documento_scaduto: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     cf_incoerente: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

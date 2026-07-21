@@ -1,0 +1,23 @@
+{% set _confidenza = confidenza_campo(pratica, campo) %}
+{% set _basso = _confidenza < soglia_confidenza %}
+{% set _confermato = campo_e_confermato(pratica, campo) %}
+<div id="campo-{{ campo }}" style="{% if _basso and not _confermato %}background: #fff3cd; padding: 0.5rem; border-radius: 4px;{% endif %} margin-bottom: 0.5rem;">
+  <form hx-post="/pratiche/{{ pratica.id }}/verifica/campo" hx-target="#campo-{{ campo }}" hx-swap="outerHTML">
+    <input type="hidden" name="campo" value="{{ campo }}">
+    <label for="input-{{ campo }}">
+      {{ etichetta }}{% if _basso %} — confidenza {{ "%.0f"|format(_confidenza * 100) }}%{% endif %}
+      <input
+        type="{{ 'date' if campo in ('data_nascita', 'data_scadenza') else 'text' }}"
+        id="input-{{ campo }}"
+        name="valore"
+        value="{{ pratica[campo] if pratica[campo] is not none else '' }}">
+    </label>
+    {% if _basso %}
+      {% if _confermato %}
+      <span>&check; confermato</span>
+      {% else %}
+      <button type="submit">Conferma</button>
+      {% endif %}
+    {% endif %}
+  </form>
+</div>

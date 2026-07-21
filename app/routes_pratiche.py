@@ -13,7 +13,10 @@ from starlette.status import (
 
 from app.auth import richiedi_utente
 from app.db import get_db
-from app.models import Pratica, TransizioneNonValidaError, Utente
+from app.estrattore import EstrattoreDocumento
+from app.estrazione import esegui_estrazione
+from app.groq_estrattore import get_estrattore
+from app.models import Pratica, StatoPratica, TransizioneNonValidaError, Utente
 from app.pratiche import (
     MAX_PAGINE_PDF,
     FileTroppoGrandeError,
@@ -41,6 +44,7 @@ async def nuova_pratica_upload(
     file: UploadFile = File(...),
     utente: Utente = Depends(richiedi_utente),
     db: Session = Depends(get_db),
+    estrattore: EstrattoreDocumento = Depends(get_estrattore),
 ):
     contenuto = await file.read()
 
@@ -92,6 +96,7 @@ async def nuova_pratica_upload(
         )
 
     pratica = crea_pratica_da_upload(db, utente, contenuto, contenuto, tipo)
+    esegui_estrazione(db, pratica, estrattore)
     return RedirectResponse(f"/pratiche/{pratica.id}", status_code=HTTP_303_SEE_OTHER)
 
 
@@ -102,6 +107,7 @@ def scegli_pagina_submit(
     pagina: int = Form(...),
     utente: Utente = Depends(richiedi_utente),
     db: Session = Depends(get_db),
+    estrattore: EstrattoreDocumento = Depends(get_estrattore),
 ):
     try:
         contenuto_pdf = base64.b64decode(pdf_base64, validate=True)
@@ -142,6 +148,7 @@ def scegli_pagina_submit(
         )
 
     pratica = crea_pratica_da_upload(db, utente, contenuto_pdf, immagine_pagina, "png")
+    esegui_estrazione(db, pratica, estrattore)
     return RedirectResponse(f"/pratiche/{pratica.id}", status_code=HTTP_303_SEE_OTHER)
 
 
@@ -155,6 +162,9 @@ def dettaglio_pratica(
     pratica = db.get(Pratica, pratica_id)
     if pratica is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Pratica non trovata.")
+
+    if pratica.stato in (StatoPratica.IN_VERIFICA, StatoPratica.ESTRAZIONE_FALLITA):
+        return RedirectResponse(f"/pratiche/{pratica.id}/verifica", status_code=HTTP_303_SEE_OTHER)
 
     duplicata = None
     if pratica.duplicato_di_pratica_id:

@@ -21,9 +21,16 @@
 <p><strong>Id:</strong> {{ pratica.id }}</p>
 <p><strong>Stato:</strong> {{ pratica.stato.value }}</p>
 <p><strong>Creata il:</strong> {{ pratica.creato_il.strftime('%d/%m/%Y %H:%M') }}</p>
-<p><em>Verifica ed estrazione dati — in costruzione (TASK 5/6).</em></p>
 
-{% if pratica.stato.value in ("caricato", "in_verifica", "estrazione_fallita") %}
+{% if pratica.stato.value == "confermato" %}
+<p><em>Download PDF — in costruzione (TASK 7).</em></p>
+{% elif pratica.stato.value == "caricato" %}
+<p><em>In attesa di estrazione automatica.</em></p>
+{% else %}
+<p><em>Pratica {{ pratica.stato.value }}.</em></p>
+{% endif %}
+
+{% if pratica.stato.value == "caricato" %}
 <form method="post" action="/pratiche/{{ pratica.id }}/annulla"
       onsubmit="return confirm('Annullare questa pratica? L\'immagine caricata verrà cancellata e i dati estratti ripuliti. L\'operazione non è reversibile.');">
   <button type="submit" class="secondary">Annulla pratica</button>

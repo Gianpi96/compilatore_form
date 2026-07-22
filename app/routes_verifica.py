@@ -1,14 +1,21 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from starlette.status import HTTP_303_SEE_OTHER, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
+from starlette.status import (
+    HTTP_303_SEE_OTHER,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
 
 from app.auth import richiedi_utente
+from app.conferma import conferma_pratica
 from app.db import get_db
 from app.estrattore import CAMPI_ESTRATTI
-from app.models import LogEvento, Pratica, StatoPratica, TransizioneNonValidaError, Utente
+from app.models import LogEvento, Pratica, StatoPratica, Utente
 from app.templates_setup import templates
 from app.verifica import (
     ETICHETTE_CAMPI,
@@ -23,6 +30,7 @@ from app.verifica import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _pratica_o_404(db: Session, pratica_id: str) -> Pratica:
@@ -167,12 +175,17 @@ def conferma_pratica_finale(
         )
 
     try:
-        pratica.transiziona(StatoPratica.CONFERMATO)
-    except TransizioneNonValidaError as exc:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    db.add(LogEvento(pratica_id=pratica.id, tipo_evento="pratica_confermata", utente_id=utente.id))
-    db.commit()
+        conferma_pratica(db, pratica, utente)
+    except Exception:
+        logger.exception("Errore durante la conferma della pratica %s", pratica.id)
+        return templates.TemplateResponse(
+            request,
+            "verifica.html",
+            _contesto_verifica(
+                pratica, errore="Errore durante la generazione del PDF. Riprova."
+            ),
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     return RedirectResponse(f"/pratiche/{pratica.id}", status_code=HTTP_303_SEE_OTHER)
 

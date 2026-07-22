@@ -1,10 +1,13 @@
 import hashlib
+import logging
 from pathlib import Path
 
 import fitz  # PyMuPDF
 from sqlalchemy.orm import Session
 
 from app.models import LogEvento, Pratica, StatoPratica, Utente
+
+logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB, vedi SPEC.md §6
 MAX_PAGINE_PDF = 50  # vedi SPEC.md §6
@@ -120,17 +123,45 @@ def crea_pratica_da_upload(
     return pratica
 
 
-def annulla_pratica(db: Session, pratica: Pratica, utente: Utente) -> None:
-    """Annullamento manuale (SPEC.md §5): transizione a "annullato", cancellazione
-    fisica dell'immagine, pulizia dei campi anagrafici estratti. Solleva
-    TransizioneNonValidaError se la pratica non è in uno stato annullabile.
+def cancella_immagine_in_modo_sicuro(db: Session, pratica: Pratica) -> bool:
+    """Cancella il file immagine solo dopo aver verificato che nessun'altra
+    pratica lo referenzi, e solo se la cancellazione fisica riesce davvero
+    (mai un semplice `unlink` senza controllo). Non solleva eccezioni: un
+    problema di cancellazione va loggato ma non deve bloccare il chiamante
+    (SPEC.md §2/§5/§6). Ritorna True se il file e' stato effettivamente
+    cancellato.
     """
-    pratica.transiziona(StatoPratica.ANNULLATO)
+    percorso = pratica.percorso_immagine_temp
+    if not percorso:
+        return False
 
-    if pratica.percorso_immagine_temp:
-        Path(pratica.percorso_immagine_temp).unlink(missing_ok=True)
-        pratica.percorso_immagine_temp = None
+    altra_pratica = (
+        db.query(Pratica)
+        .filter(Pratica.percorso_immagine_temp == percorso, Pratica.id != pratica.id)
+        .first()
+    )
+    if altra_pratica is not None:
+        logger.error(
+            "Immagine di pratica %s ancora referenziata da pratica %s: non cancellata.",
+            pratica.id,
+            altra_pratica.id,
+        )
+        return False
 
+    file_immagine = Path(percorso)
+    file_immagine.unlink(missing_ok=True)
+    if file_immagine.exists():
+        logger.error("Impossibile cancellare il file immagine per pratica %s.", pratica.id)
+        return False
+
+    pratica.percorso_immagine_temp = None
+    return True
+
+
+def ripulisci_campi_anagrafici(pratica: Pratica) -> None:
+    """Imposta a NULL tutti i campi anagrafici estratti e i dati derivati
+    (SPEC.md §2: usato sia per l'annullamento manuale sia per il job di
+    pulizia automatico — vedi app/pulizia.py)."""
     pratica.nome = None
     pratica.cognome = None
     pratica.data_nascita = None
@@ -139,8 +170,19 @@ def annulla_pratica(db: Session, pratica: Pratica, utente: Utente) -> None:
     pratica.numero_documento = None
     pratica.data_scadenza = None
     pratica.confidenza_json = None
+    pratica.campi_confermati_json = None
     pratica.documento_scaduto = False
     pratica.cf_incoerente = False
+
+
+def annulla_pratica(db: Session, pratica: Pratica, utente: Utente) -> None:
+    """Annullamento manuale (SPEC.md §5): transizione a "annullato", cancellazione
+    fisica dell'immagine, pulizia dei campi anagrafici estratti. Solleva
+    TransizioneNonValidaError se la pratica non è in uno stato annullabile.
+    """
+    pratica.transiziona(StatoPratica.ANNULLATO)
+    cancella_immagine_in_modo_sicuro(db, pratica)
+    ripulisci_campi_anagrafici(pratica)
 
     db.add(LogEvento(pratica_id=pratica.id, tipo_evento="annullato", utente_id=utente.id))
     db.commit()

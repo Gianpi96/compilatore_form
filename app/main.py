@@ -1,3 +1,6 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -21,9 +24,27 @@ from app.pratiche import MAX_UPLOAD_BYTES
 from app.rate_limit import limitatore_login
 from app.routes_pratiche import router as router_pratiche
 from app.routes_verifica import router as router_verifica
+from app.scheduler import avvia_scheduler, ferma_scheduler
 from app.templates_setup import templates
 
-app = FastAPI(title="DocForm")
+# Senza configurazione esplicita, i messaggi INFO (es. il riepilogo del job di
+# pulizia) vengono scartati silenziosamente (il logger di root di Python parte
+# a livello WARNING). MAI dati anagrafici nei messaggi di log (SPEC.md §4).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = avvia_scheduler()
+    yield
+    ferma_scheduler(scheduler)
+
+
+app = FastAPI(title="DocForm", lifespan=lifespan)
 app.include_router(router_pratiche)
 app.include_router(router_verifica)
 

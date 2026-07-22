@@ -23,7 +23,9 @@
 <p><strong>Creata il:</strong> {{ pratica.creato_il.strftime('%d/%m/%Y %H:%M') }}</p>
 
 {% if pratica.stato.value == "confermato" %}
-<p><em>Download PDF — in costruzione (TASK 7).</em></p>
+<p><strong>Confermata il:</strong> {{ pratica.confermato_il.strftime('%d/%m/%Y %H:%M') if pratica.confermato_il else "—" }}</p>
+<p>PDF generato: <code>{{ pratica.percorso_pdf_output }}</code></p>
+<p><em>Link di download diretto — in costruzione (TASK 9).</em></p>
 {% elif pratica.stato.value == "caricato" %}
 <p><em>In attesa di estrazione automatica.</em></p>
 {% else %}

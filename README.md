@@ -95,7 +95,43 @@ Dopo l'estrazione, `http://localhost:8000/pratiche/{id}` reindirizza automaticam
 - Avvisi non bloccanti in testa alla pagina: documento scaduto, codice fiscale incoerente, possibile duplicato.
 - Il pulsante **"Annulla pratica"** resta disponibile anche da questa schermata.
 
-Alla conferma la pratica passa a stato `confermato` — generazione del PDF e cancellazione dell'immagine restano TASK 7.
+Alla conferma la pratica passa a stato `confermato`: viene generato il PDF e cancellata fisicamente l'immagine (vedi sotto).
+
+## Conferma e PDF
+
+Al click su "Conferma pratica" (solo se tutti i campi a bassa confidenza sono stati confermati):
+
+1. genera un PDF (`reportlab`) in `OUTPUT_FOLDER` con nome `AAAA-MM-GG_COGNOME-NOME.pdf` (data odierna, timezone Europe/Rome); se il nome esiste già, aggiunge un suffisso incrementale (`_2`, `_3`, ...) — mai una sovrascrittura. Scrittura atomica (file temporaneo + rename): mai un PDF parziale con il nome finale.
+2. imposta `percorso_pdf_output` e `confermato_il`, transiziona la pratica a `confermato`.
+3. cancella fisicamente l'immagine originale — solo dopo aver verificato che nessun'altra pratica referenzi lo stesso file e che la cancellazione sia effettivamente riuscita; un problema qui viene loggato (mai un'eccezione silenziosa) ma non annulla la conferma già avvenuta, dato che il PDF (il dato definitivo) è già stato scritto con successo.
+
+Se la generazione del PDF fallisce (es. cartella non scrivibile), la conferma viene rifiutata e la pratica resta in `in_verifica`, pronta per un nuovo tentativo — l'errore va nei log del server, mai in uno stacktrace mostrato all'operatore.
+
+Non c'è ancora un link di download diretto dalla UI (arriva con TASK 9, la dashboard): per ora il percorso del file è visibile nel dettaglio della pratica confermata.
+
+## Job di pulizia pratiche abbandonate
+
+All'avvio dell'app (log strutturati su stdout, vedi sotto) parte uno scheduler in-process (`APScheduler`) che:
+
+1. esegue subito una passata di pulizia (così un'immagine non resta orfana per giorni se il PC è rimasto spento oltre le 24h);
+2. poi ripete la stessa passata ogni ora, finché il processo resta acceso.
+
+Ogni passata cerca le pratiche con `creato_il` più vecchio di 24 ore e stato non terminale (esclusi `confermato`, `abbandonato`, `annullato`): per ciascuna cancella fisicamente l'immagine, ripulisce (`NULL`) tutti i campi anagrafici e le confidenze, e porta lo stato ad `abbandonato` — stessa logica di minimizzazione dell'annullamento manuale, ma automatica e senza operatore associato nel log (`utente_id` nullo). Ogni pratica viene salvata singolarmente: un problema su una non fa perdere il lavoro già fatto sulle altre nella stessa passata.
+
+**Nota tecnica:** l'app non configurava esplicitamente il modulo `logging` di Python — i messaggi `INFO` (incluso il riepilogo del job: "N pratica/e abbandonata/e") venivano scartati silenziosamente perché sotto la soglia di default. Corretto in `app/main.py` con una configurazione esplicita (livello INFO, formato con timestamp) applicata all'avvio: da questo momento tutti i log applicativi (incluse le estrazioni fallite già presenti dal TASK 5) sono visibili nell'output del server.
+
+**Collaudo manuale senza attendere 24h:**
+
+```powershell
+# 1. Trova (o crea) l'id di una pratica di test, poi:
+python -m app.cli forza-eta-pratica <pratica_id>          # default: 25 ore fa
+python -m app.cli forza-eta-pratica <pratica_id> --ore 30 # o un valore a scelta
+
+# 2. Riavvia l'app: la passata immediata la ripulisce subito, senza aspettare
+uvicorn app.main:app --reload
+```
+
+Comando SOLO per sviluppo/collaudo (mai contro un database di produzione: altera un timestamp reale che il job userebbe per decidere se abbandonare la pratica).
 
 ## Sviluppo
 
@@ -122,6 +158,10 @@ app/estrattore.py       interfaccia astratta del motore di estrazione
 app/groq_estrattore.py  implementazione Groq vision (v1)
 app/codice_fiscale.py   validazione carattere di controllo e coerenza
 app/verifica.py         logica della schermata di verifica campo per campo
+app/pdf.py              generazione del PDF di pratica confermata
+app/conferma.py         orchestrazione della conferma finale (PDF + cancellazione immagine)
+app/pulizia.py          logica del job di pulizia pratiche abbandonate
+app/scheduler.py        avvio/stop dello scheduler APScheduler in-process
 app/templates/      pagine Jinja2 (login, dashboard, upload, verifica pratica)
 storage/temp/       immagini caricate, temporanee (non tracciata da git)
 tests/          test pytest

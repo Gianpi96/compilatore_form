@@ -1,6 +1,8 @@
 # DocForm
 
-Estrattore documenti d'identità con verifica umana e compilazione form. Vedi [SPEC.md](SPEC.md) per i dettagli completi e [TASKS.md](TASKS.md) per lo stato di avanzamento.
+Estrattore documenti d'identità con verifica umana e compilazione form.
+
+*English summary: extracts data from identity documents, lets a person verify it, and fills in a form. Python, Alembic migrations, pytest tests. The documentation below is in Italian.*
 
 ## Avvio su Windows (sviluppo locale)
 
